@@ -44,13 +44,53 @@ A beautiful and feature-rich Cockpit module that displays comprehensive battery 
 
 ## Screenshots
 
-The dashboard displays:
-- Battery percentage with circular indicator
-- Current charge and capacity information
-- Voltage and power usage
-- Battery health status
-- Device manufacturer and model details
-- Historical battery readings
+### Main Dashboard
+
+The main Battery Monitor dashboard displays all battery information at a glance:
+
+![Battery Monitor Dashboard](screenshots/dashboard.png)
+
+Key elements visible:
+- **Battery Percentage**: Large circular indicator showing current charge percentage
+- **Status Badge**: Shows current status (Full, Charging, Discharging)
+- **Charge Level**: Visual progress bar showing charge percentage
+- **Quick Stats**: Current charge, capacity, voltage, and power usage
+
+- ### Battery Status Card
+
+![Battery Status](screenshots/battery-status.png)
+
+Displays:
+- Real-time battery percentage (100%)
+- Current charging status
+- Current and full capacity (Ah)
+- System voltage (V)
+- Power consumption (W)
+- Color-coded health indicator
+
+- ### Battery Health Information
+
+![Battery Health](screenshots/battery-health.png)
+
+Shows:
+- Battery health percentage
+- Design vs. current capacity comparison
+- Health degradation indicators
+- Design capacity
+- Current capacity
+- Battery wear assessment
+
+- ### Device Information
+
+![Device Information](screenshots/device-info.png)
+
+Details displayed:
+- Manufacturer: Hewlett-Packard
+- Model: PABAS0241231
+- Serial Number: 41167
+- Battery Technology: Li-ion
+- Charge Cycles: 0
+- Battery Device: BAT1
 
 ## Requirements
 
