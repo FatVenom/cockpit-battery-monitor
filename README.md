@@ -65,7 +65,7 @@ The dashboard displays:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/cockpit-battery-stats.git
+git clone https://github.com/FatVenom/cockpit-battery-monitor.git
 
 # Install
 cd cockpit-battery-stats
