@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "tools": {
+    "battery-stats": {
+      "label": "Battery Stats",
+      "path": "index.html"
+    }
+  }
+}
