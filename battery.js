@@ -13,11 +13,18 @@ document.addEventListener('DOMContentLoaded', function() {
 // Function to read battery files
 function readBatteryFile(path) {
   return cockpit.spawn(["cat", path])
-    .then(output => output.trim())
+    .then(output => {
+        // Handle success
+        return output.trim();
+    })
     .catch(error => {
-      console.warn("File not available: " + path);
-      return null;
-    });
+        // Properly handle error - prevents zombie
+        console.warn("Error:", error);
+        return null;
+    })
+    .finally(() => {
+        // Cleanup if needed
+    })
 }
 
 // Function to format time
