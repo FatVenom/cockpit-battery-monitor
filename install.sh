@@ -185,8 +185,13 @@ verify_battery() {
 restart_cockpit() {
     print_info "Restarting Cockpit service..."
     
+    # Properly handle the service restart
     systemctl restart cockpit.service
     
+    # Wait for service to stabilize
+    sleep 2
+    
+    # Check if service is running
     if systemctl is-active --quiet cockpit.service; then
         print_success "Cockpit service restarted successfully"
     else
@@ -194,6 +199,18 @@ restart_cockpit() {
         exit 1
     fi
 }
+
+# Cleanup function to prevent zombies
+cleanup() {
+    # Kill any remaining child processes
+    jobs -p | xargs -r kill -9 2>/dev/null || true
+    
+    # Wait for all background jobs
+    wait
+}
+
+# Call cleanup on exit
+trap cleanup EXIT
 
 # Show installation summary
 show_summary() {
