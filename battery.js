@@ -163,7 +163,7 @@ function renderWindows11Graph(historyEntries, timeframeHours) {
 
           <div class="bars-container">
             ${sampledEntries.map(entry => {
-              const pct = entry.percent || 0;
+              const pct = Math.min(100, Math.max(0, parseInt(entry.percent) || 0));
               let barColorClass = 'high';
               if (pct < 20) barColorClass = 'low';
               else if (pct < 50) barColorClass = 'medium';

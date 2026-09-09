@@ -333,6 +333,7 @@ h1 {
 
 .chart-area {
   flex: 1;
+  height: 100%;
   position: relative;
   border-bottom: 2px solid #dee2e6;
 }
@@ -353,17 +354,20 @@ h1 {
   align-items: flex-end;
   justify-content: space-between;
   height: 100%;
+  width: 100%;
   padding: 0 10px;
   position: relative;
   z-index: 2;
+  box-sizing: border-box;
 }
 
 .bar-wrapper {
   flex: 1;
   height: 100%;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
   margin: 0 3px;
   position: relative;
 }
@@ -371,9 +375,11 @@ h1 {
 .bar-fill {
   width: 100%;
   max-width: 16px;
+  min-height: 4px;
   border-radius: 8px 8px 4px 4px;
   position: relative;
-  transition: transform 0.2s ease, filter 0.2s ease;
+  transform-origin: bottom;
+  transition: height 0.3s ease, transform 0.2s ease, filter 0.2s ease;
   cursor: pointer;
 }
 
