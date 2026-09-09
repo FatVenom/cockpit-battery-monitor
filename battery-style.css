@@ -217,6 +217,20 @@ h1 {
   color: #155724;
 }
 
+.info-box {
+  background: #e7f5ff;
+  border-left: 4px solid #339af0;
+  padding: 15px;
+  border-radius: 5px;
+  margin-top: 15px;
+  color: #1864ab;
+}
+
+.text-danger {
+  color: #e03131 !important;
+  font-weight: 700;
+}
+
 .time-estimate {
   font-size: 1.2em;
   font-weight: 600;
@@ -262,29 +276,345 @@ h1 {
   color: #999;
 }
 
-.battery-history-container {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-  margin-top: 15px;
+/* Windows 11 Style Battery Graph */
+.graph-card {
+  background: #ffffff;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  margin-bottom: 25px;
 }
 
-.history-entry {
+.graph-header {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  font-size: 0.9em;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-.history-time {
+.graph-title {
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #333;
+}
+
+.graph-time-selector {
+  font-size: 0.9em;
   color: #666;
+}
+
+.graph-time-selector select {
+  background: #f1f3f5;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+}
+
+.graph-body {
+  display: flex;
+  height: 220px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.y-axis-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-right: 15px;
+  font-size: 0.8em;
+  color: #888;
   font-weight: 500;
 }
 
-.history-percent {
-  color: #667eea;
+.chart-area {
+  flex: 1;
+  position: relative;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #e9ecef;
+}
+
+.grid-line.line-100 { top: 0%; }
+.grid-line.line-50 { top: 50%; }
+.grid-line.line-0 { bottom: 0%; border-top: none; }
+
+.bars-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 10px;
+  position: relative;
+  z-index: 2;
+}
+
+.bar-wrapper {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: 0 3px;
+  position: relative;
+}
+
+.bar-fill {
+  width: 100%;
+  max-width: 16px;
+  border-radius: 8px 8px 4px 4px;
+  position: relative;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  cursor: pointer;
+}
+
+.bar-fill:hover {
+  transform: scaleY(1.04);
+  filter: brightness(1.15);
+}
+
+.bar-fill.high {
+  background: linear-gradient(180deg, #20c997 0%, #0ca678 100%);
+}
+
+.bar-fill.medium {
+  background: linear-gradient(180deg, #ffc078 0%, #f59f00 100%);
+}
+
+.bar-fill.low {
+  background: linear-gradient(180deg, #ff8787 0%, #f03e3e 100%);
+}
+
+.charging-icon {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8em;
+}
+
+/* Glassmorphism Floating Hover Tooltip */
+.bar-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 115%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(33, 37, 41, 0.92);
+  backdrop-filter: blur(8px);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8em;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 100;
+  text-align: center;
+}
+
+.bar-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: rgba(33, 37, 41, 0.92) transparent transparent transparent;
+}
+
+.bar-fill:hover .bar-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.tooltip-time {
   font-weight: 600;
+  margin-bottom: 2px;
+  color: #adb5bd;
+}
+
+.tooltip-percent {
+  font-size: 1.2em;
+  font-weight: 700;
+  color: #485fc7;
+  color: #74c0fc;
+}
+
+.tooltip-status {
+  font-size: 0.85em;
+  color: #e9ecef;
+  margin-top: 2px;
+}
+
+.tooltip-detail {
+  font-size: 0.8em;
+  color: #ced4da;
+}
+
+.x-axis-labels {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 45px;
+  font-size: 0.85em;
+  color: #888;
+  font-weight: 500;
+}
+
+.graph-empty {
+  text-align: center;
+  padding: 30px;
+  color: #868e96;
+}
+
+/* Card Header Flex & Toggle Button */
+.card-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.btn-toggle {
+  background: #f1f3f5;
+  border: 1px solid #ced4da;
+  color: #495057;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85em;
+  transition: all 0.2s ease;
+}
+
+.btn-toggle:hover {
+  background: #e9ecef;
+  color: #212529;
+}
+
+/* Background Logger Service Bar */
+.logger-service-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-size: 0.9em;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.logger-status-text {
+  font-weight: 500;
+  color: #495057;
+}
+
+.status-active {
+  color: #2b8a3e;
+  font-weight: 600;
+}
+
+.status-inactive {
+  color: #868e96;
+  font-weight: 600;
+}
+
+.btn-service {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85em;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-service.start {
+  background: #40c057;
+  color: white;
+}
+
+.btn-service.start:hover {
+  background: #37b24d;
+}
+
+.btn-service.stop {
+  background: #fa5252;
+  color: white;
+}
+
+.btn-service.stop:hover {
+  background: #f03e3e;
+}
+
+.history-hidden-notice {
+  text-align: center;
+  padding: 15px;
+  color: #868e96;
+  font-size: 0.9em;
+}
+
+/* Tooltip for Battery Device */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  margin-left: 6px;
+  font-size: 0.9em;
+}
+
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: 240px;
+  background-color: #343a40;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 6px 10px;
+  position: absolute;
+  z-index: 10;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -120px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 0.8em;
+  font-weight: normal;
+  word-break: break-all;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #343a40 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
 }
 
 @media (max-width: 768px) {

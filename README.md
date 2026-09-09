@@ -4,43 +4,49 @@ A beautiful and feature-rich Cockpit module that displays comprehensive battery 
 
 ## Features
 
-✨ **Real-time Battery Monitoring**
-- Live battery percentage with color-coded indicators
-- Current charge status (Charging/Discharging/Full)
-- Voltage and power usage monitoring
+✨ **Real-time Battery & Power Monitoring**
+- Live battery percentage with color-coded circular progress
+- Current charge status (Charging/Discharging/Full) & Power Source detection (AC Plugged / Battery)
+- Real-time voltage, current, and wattage power draw
+- **Battery Temperature Monitoring (°C)** with thermal overheating warnings
 
-🔋 **Battery Health Analysis**
+🔋 **Battery Health & Energy Analysis**
 - Overall battery health percentage
+- Automatic unit fallback (supports both **Ah** and **Wh** Watt-hour sysfs drivers)
 - Design vs. current capacity comparison
-- Health degradation warnings
-- Battery wear assessment
+- Health degradation warnings & battery wear assessment
+
+🛡️ **Battery Protection & Thresholds**
+- Automatic detection of hardware battery protection thresholds (e.g. 80% charge limits on ThinkPad, ASUS, Dell, Lenovo)
 
 ⏱️ **Time Estimates**
 - Estimated time until battery depletion (when discharging)
 - Estimated time to full charge (when charging)
 
-📊 **Battery History**
-- Track last 30 battery readings
-- Timestamp for each reading
-- Historical data for trend analysis
+📊 **Windows 11-Style Interactive Battery Levels Graph (Optional)**
+- **Interactive Bar Chart**: Visualizes battery levels over time with rounded color-coded bars and ⚡ charging badges.
+- **Timeframe Selector**: Toggle views between **Last 12 Hours** and **Last 24 Hours**.
+- **Hover Tooltips**: Floating glassmorphism popup displaying exact Time, Battery %, Status, Wattage draw, and Temperature.
+- **48-Hour Persistent Backup**: Optional background logger (`cockpit-battery-logger.timer`) keeps up to 192 entries (48 hours of background history).
+- **Clean & Optional**: If opted out during installation, the Battery History section is automatically removed from the webpage for a clean, minimal dashboard!
 
 ⚠️ **Smart Alerts**
 - Low battery critical warnings
+- Thermal / high temperature warnings (>45 °C)
 - Battery degradation alerts
 - Health status notifications
 
-📱 **Beautiful Dashboard**
+📱 **Beautiful Dashboard & Web Controls**
 - Modern purple gradient UI
-- Responsive design (desktop & mobile)
-- Circular battery percentage indicator
-- Visual progress bars
-- Color-coded status badges
+- Responsive layout (desktop & mobile)
+- Hoverable info tooltip ℹ️ next to **Battery Device** displaying full sysfs path (e.g. `/sys/class/power_supply/BAT1`)
 
 🔧 **Device Information**
+- Auto-detection of battery sysfs path (`BAT0`, `BAT1`, etc.)
 - Manufacturer and model details
 - Serial number
 - Battery technology type (Li-ion, etc.)
-- Charge cycle count
+- Charge cycle count & hardware device name
 
 ## Screenshots
 
@@ -48,7 +54,7 @@ A beautiful and feature-rich Cockpit module that displays comprehensive battery 
 
 The main Battery Monitor dashboard displays all battery information at a glance:
 
-![Battery Monitor Dashboard](screenshots/dashboard.png)
+![Battery Monitor Dashboard](screenshots/dashboard2.png)
 
 Key elements visible:
 - **Battery Percentage**: Large circular indicator showing current charge percentage
@@ -58,7 +64,7 @@ Key elements visible:
 
 - ### Battery Status Card
 
-![Battery Status](screenshots/battery-status.png)
+![Battery Status](screenshots/battery-status2.png)
 
 Displays:
 - Real-time battery percentage (100%)
@@ -70,7 +76,7 @@ Displays:
 
 - ### Battery Health Information
 
-![Battery Health](screenshots/battery-health.png)
+![Battery Health](screenshots/battery-health2.png)
 
 Shows:
 - Battery health percentage
@@ -106,9 +112,16 @@ Details displayed:
 ```bash
 # Clone the repository
 git clone https://github.com/FatVenom/cockpit-battery-monitor.git
+cd cockpit-battery-monitor
 
-# Install
-cd cockpit-battery-stats
+# Minimal Makefile Installation (UI Dashboard only)
+sudo make install
+
+# Full Makefile Installation WITH 48-hour background history logger service
+sudo make install-service
+sudo systemctl daemon-reload && sudo systemctl enable --now cockpit-battery-logger.timer
+
+# Or using the interactive installation script (prompts for optional history logger)
 sudo bash install.sh
 ```
 
@@ -118,13 +131,9 @@ See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 
 ## Configuration
 
-The module automatically detects your battery device. If you have multiple batteries or a different battery device name, edit `battery.js` and update:
+The module **automatically detects** your active battery device (`BAT0`, `BAT1`, or `Battery`) and AC power supply. No manual configuration is necessary for most systems!
 
-```javascript
-const batteryBasePath = "/sys/class/power_supply/BAT1";
-```
-
-Replace `BAT1` with your battery device name. Find available devices with:
+If you wish to check your system's battery devices manually, run:
 
 ```bash
 ls /sys/class/power_supply/
@@ -148,7 +157,7 @@ If you see a blank page:
 1. **Check browser console** (F12) for errors
 2. **Verify file permissions:**
    ```bash
-   ls -la /usr/share/cockpit/battery-stats/
+   ls -la /usr/share/cockpit/battery-monitor/
    ```
 3. **Check Cockpit logs:**
    ```bash
@@ -171,13 +180,12 @@ If battery information is not showing:
    ```bash
    cat /sys/class/power_supply/BAT0/capacity
    ```
-3. **Update `battery.js`** with the correct battery device name
 
 ### Module Not Appearing in Sidebar
 
 1. **Verify installation location:**
    ```bash
-   ls /usr/share/cockpit/battery-stats/
+   ls /usr/share/cockpit/battery-monitor/
    ```
 2. **Check manifest.json** is properly formatted
 3. **Restart Cockpit** and refresh browser

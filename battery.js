@@ -1,33 +1,20 @@
-// Battery data history
-let batteryHistory = {
-  entries: [],
-  maxEntries: 30
-};
+// Current graph view filter (12h or 24h)
+let graphViewHours = 24;
 
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', function() {
   updateBatteryStats();
-  setInterval(updateBatteryStats, 30000);
+  setInterval(updateBatteryStats, 30000); // Live UI refresh every 30s
 });
 
-// Function to read battery files
+// Helper function to read sysfs/files via cockpit.spawn
 function readBatteryFile(path) {
   return cockpit.spawn(["cat", path])
-    .then(output => {
-        // Handle success
-        return output.trim();
-    })
-    .catch(error => {
-        // Properly handle error - prevents zombie
-        console.warn("Error:", error);
-        return null;
-    })
-    .finally(() => {
-        // Cleanup if needed
-    })
+    .then(output => output.trim())
+    .catch(() => null);
 }
 
-// Function to format time
+// Function to format time in seconds to human readable
 function formatTime(seconds) {
   if (!seconds || seconds < 0) return "N/A";
   const hours = Math.floor(seconds / 3600);
@@ -38,7 +25,7 @@ function formatTime(seconds) {
   return minutes + "m";
 }
 
-// Function to get health status
+// Function to get health status label
 function getHealthStatus(health) {
   if (health >= 95) return "Excellent";
   if (health >= 80) return "Good";
@@ -46,9 +33,9 @@ function getHealthStatus(health) {
   return "Poor";
 }
 
-// Function to create circular progress
+// Function to create circular progress UI
 function createCircularProgress(capacity) {
-  const percent = parseInt(capacity);
+  const percent = parseInt(capacity) || 0;
   let cssClass = 'high';
   
   if (percent < 20) cssClass = 'low';
@@ -63,10 +50,10 @@ function createCircularProgress(capacity) {
   `;
 }
 
-// Function to get status badge
-function getStatusBadge(status) {
+// Function to get status badge with AC support
+function getStatusBadge(status, acOnline) {
   let badgeClass = 'status-full';
-  let icon = '⚡';
+  let icon = '⚡ ';
   
   if (status === 'Charging') {
     badgeClass = 'status-charging';
@@ -74,24 +61,179 @@ function getStatusBadge(status) {
   } else if (status === 'Discharging') {
     badgeClass = 'status-discharging';
     icon = '⬇️ ';
+  } else if (acOnline === '1') {
+    badgeClass = 'status-full';
+    icon = '🔌 ';
+    status = status || 'AC Mains Connected';
   }
   
-  return `<span class="status-badge ${badgeClass}">${icon}${status}</span>`;
+  return `<span class="status-badge ${badgeClass}">${icon}${status || 'Unknown'}</span>`;
+}
+
+// Auto-detect battery device path
+async function detectBatteryPath() {
+  const paths = [
+    "/sys/class/power_supply/BAT1",
+    "/sys/class/power_supply/BAT0",
+    "/sys/class/power_supply/Battery"
+  ];
+  for (const p of paths) {
+    const cap = await readBatteryFile(p + "/capacity");
+    if (cap !== null) return p;
+  }
+  return "/sys/class/power_supply/BAT0";
+}
+
+// Auto-detect AC adapter path
+async function detectACPath() {
+  const paths = [
+    "/sys/class/power_supply/AC",
+    "/sys/class/power_supply/ACAD",
+    "/sys/class/power_supply/ADP1",
+    "/sys/class/power_supply/AC0"
+  ];
+  for (const p of paths) {
+    const online = await readBatteryFile(p + "/online");
+    if (online !== null) return p;
+  }
+  return null;
+}
+
+// Function to change graph timeframe filter
+window.setGraphViewHours = function(hours) {
+  graphViewHours = parseInt(hours);
+  updateBatteryStats();
+};
+
+// Render Windows 11-style interactive bar graph
+function renderWindows11Graph(historyEntries, timeframeHours) {
+  if (!historyEntries || historyEntries.length === 0) {
+    return `
+      <div class="graph-card">
+        <div class="graph-header">
+          <span class="graph-title">Battery levels</span>
+        </div>
+        <div class="graph-empty">
+          <em>Collecting initial background battery logs... Please check back in a few minutes.</em>
+        </div>
+      </div>
+    `;
+  }
+
+  // Filter entries based on selected timeframe (12h or 24h)
+  const maxEntriesToDisplay = timeframeHours === 12 ? 48 : 96;
+  const filteredEntries = historyEntries.slice(0, maxEntriesToDisplay).reverse();
+
+  // Downsample to 24 bars max for clean spacing (like Windows 11)
+  const barCount = 24;
+  const step = Math.max(1, Math.floor(filteredEntries.length / barCount));
+  const sampledEntries = [];
+
+  for (let i = 0; i < filteredEntries.length; i += step) {
+    sampledEntries.push(filteredEntries[i]);
+    if (sampledEntries.length >= barCount) break;
+  }
+
+  // Render SVG / CSS Bar Chart
+  return `
+    <div class="graph-card">
+      <div class="graph-header">
+        <span class="graph-title">Battery levels</span>
+        <div class="graph-time-selector">
+          <label for="timeframe-select">Time period: </label>
+          <select id="timeframe-select" onchange="setGraphViewHours(this.value)">
+            <option value="12" ${timeframeHours === 12 ? 'selected' : ''}>Last 12 hours</option>
+            <option value="24" ${timeframeHours === 24 ? 'selected' : ''}>Last 24 hours</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="graph-body">
+        <!-- Y-Axis Reference Guide Lines -->
+        <div class="y-axis-labels">
+          <span>100%</span>
+          <span>50%</span>
+          <span>0%</span>
+        </div>
+
+        <div class="chart-area">
+          <div class="grid-line line-100"></div>
+          <div class="grid-line line-50"></div>
+          <div class="grid-line line-0"></div>
+
+          <div class="bars-container">
+            ${sampledEntries.map(entry => {
+              const pct = entry.percent || 0;
+              let barColorClass = 'high';
+              if (pct < 20) barColorClass = 'low';
+              else if (pct < 50) barColorClass = 'medium';
+
+              const isCharging = entry.status === 'Charging' || entry.acOnline === '1';
+
+              return `
+                <div class="bar-wrapper">
+                  <div class="bar-fill ${barColorClass}" style="height: ${pct}%;">
+                    ${isCharging ? '<span class="charging-icon">⚡</span>' : ''}
+                    <div class="bar-tooltip">
+                      <div class="tooltip-time">${entry.time}</div>
+                      <div class="tooltip-percent">${pct}%</div>
+                      <div class="tooltip-status">${entry.status || 'Discharging'}</div>
+                      ${entry.power ? `<div class="tooltip-detail">Power: ${entry.power} W</div>` : ''}
+                      ${entry.temp && entry.temp !== 'N/A' ? `<div class="tooltip-detail">Temp: ${entry.temp} °C</div>` : ''}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- X-Axis Time Labels -->
+      <div class="x-axis-labels">
+        <span>${sampledEntries[0] ? sampledEntries[0].time : ''}</span>
+        <span>${sampledEntries[Math.floor(sampledEntries.length / 2)] ? sampledEntries[Math.floor(sampledEntries.length / 2)].time : ''}</span>
+        <span>${sampledEntries[sampledEntries.length - 1] ? sampledEntries[sampledEntries.length - 1].time : ''}</span>
+      </div>
+    </div>
+  `;
 }
 
 // Main function to update battery stats
 async function updateBatteryStats() {
   try {
-    const batteryBasePath = "/sys/class/power_supply/BAT1";
+    const batteryBasePath = await detectBatteryPath();
+    const acBasePath = await detectACPath();
+    const batteryDeviceName = batteryBasePath.split('/').pop();
     
-    // Read all available battery information
+    // Read core battery fields
     const capacity = await readBatteryFile(batteryBasePath + "/capacity");
     const status = await readBatteryFile(batteryBasePath + "/status");
+    const capacityLevel = await readBatteryFile(batteryBasePath + "/capacity_level");
+    
+    // Read Ah metrics
     const chargeNow = await readBatteryFile(batteryBasePath + "/charge_now");
     const chargeFull = await readBatteryFile(batteryBasePath + "/charge_full");
     const chargeFullDesign = await readBatteryFile(batteryBasePath + "/charge_full_design");
+    
+    // Read Wh fallback metrics
+    const energyNow = await readBatteryFile(batteryBasePath + "/energy_now");
+    const energyFull = await readBatteryFile(batteryBasePath + "/energy_full");
+    const energyFullDesign = await readBatteryFile(batteryBasePath + "/energy_full_design");
+    
+    // Read Voltage and Power/Current
     const voltageNow = await readBatteryFile(batteryBasePath + "/voltage_now");
     const currentNow = await readBatteryFile(batteryBasePath + "/current_now");
+    const powerNow = await readBatteryFile(batteryBasePath + "/power_now");
+    
+    // Read Thermal metric
+    const temp = await readBatteryFile(batteryBasePath + "/temp");
+    
+    // Read Charge Control Limit / Conservation Mode
+    const chargeControlEnd = await readBatteryFile(batteryBasePath + "/charge_control_end_threshold");
+    const conservationMode = await readBatteryFile("/sys/bus/platform/drivers/ideapad_acpi/conservation_mode");
+    
+    // Read Hardware Info
     const manufacturer = await readBatteryFile(batteryBasePath + "/manufacturer");
     const modelName = await readBatteryFile(batteryBasePath + "/model_name");
     const serialNumber = await readBatteryFile(batteryBasePath + "/serial_number");
@@ -100,34 +242,62 @@ async function updateBatteryStats() {
     const timeToEmpty = await readBatteryFile(batteryBasePath + "/time_to_empty_now");
     const timeToFull = await readBatteryFile(batteryBasePath + "/time_to_full_now");
     
-    // Update battery history
-    if (capacity) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString();
-      batteryHistory.entries.unshift({
-        time: timeStr,
-        percent: parseInt(capacity)
-      });
-      
-      if (batteryHistory.entries.length > batteryHistory.maxEntries) {
-        batteryHistory.entries.pop();
+    // Read AC Power Adapter Info
+    const acOnline = acBasePath ? await readBatteryFile(acBasePath + "/online") : null;
+    const acType = acBasePath ? await readBatteryFile(acBasePath + "/type") : null;
+
+    // Check if Persistent Background Log File Exists
+    const bgLogRaw = await readBatteryFile("/var/log/cockpit-battery-history.json");
+    let historyEntries = null;
+    if (bgLogRaw) {
+      try {
+        const parsed = JSON.parse(bgLogRaw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          historyEntries = parsed;
+        }
+      } catch(e) {
+        historyEntries = null;
       }
     }
-    
-    // Calculate health
-    let health = 100;
-    if (chargeFullDesign && chargeFull) {
-      const cFullDesign = parseInt(chargeFullDesign);
-      const cFull = parseInt(chargeFull);
-      health = ((cFull / cFullDesign) * 100).toFixed(1);
-    }
-    
-    // Calculate power
+
+    // Calculate power usage (W)
     let power = 0;
-    if (currentNow && voltageNow) {
+    if (powerNow) {
+      power = parseInt(powerNow) / 1000000;
+    } else if (currentNow && voltageNow) {
       const current = parseInt(currentNow);
       const voltage = parseInt(voltageNow);
       power = (current / 1000000) * (voltage / 1000000);
+    }
+    
+    // Process Temperature (°C)
+    let tempCelsius = null;
+    if (temp) {
+      tempCelsius = (parseInt(temp) / 10).toFixed(1);
+    }
+    
+    // Calculate health & capacities (with Wh fallback)
+    let health = 100;
+    let currentCapStr = 'N/A';
+    let fullCapStr = 'N/A';
+    let designCapStr = 'N/A';
+
+    if (chargeFullDesign && chargeFull) {
+      const cFullDesign = parseInt(chargeFullDesign);
+      const cFull = parseInt(chargeFull);
+      const cNow = chargeNow ? parseInt(chargeNow) : 0;
+      health = ((cFull / cFullDesign) * 100).toFixed(1);
+      currentCapStr = (cNow / 1000000).toFixed(2) + ' Ah';
+      fullCapStr = (cFull / 1000000).toFixed(2) + ' Ah';
+      designCapStr = (cFullDesign / 1000000).toFixed(2) + ' Ah';
+    } else if (energyFullDesign && energyFull) {
+      const eFullDesign = parseInt(energyFullDesign);
+      const eFull = parseInt(energyFull);
+      const eNow = energyNow ? parseInt(energyNow) : 0;
+      health = ((eFull / eFullDesign) * 100).toFixed(1);
+      currentCapStr = (eNow / 1000000).toFixed(2) + ' Wh';
+      fullCapStr = (eFull / 1000000).toFixed(2) + ' Wh';
+      designCapStr = (eFullDesign / 1000000).toFixed(2) + ' Wh';
     }
     
     // Calculate time estimates
@@ -141,10 +311,9 @@ async function updateBatteryStats() {
       estimatedTimeToFull = formatTime(parseInt(timeToFull));
     }
     
-    // Determine health status
     const healthStatus = getHealthStatus(health);
     
-    // Build HTML
+    // Build HTML Dashboard
     let html = '';
     
     // Main Status Card
@@ -156,15 +325,19 @@ async function updateBatteryStats() {
           <div class="battery-info-section">
             <div class="info-item">
               <span class="info-label">Status:</span>
-              <span class="info-value">${getStatusBadge(status)}</span>
+              <span class="info-value">${getStatusBadge(status, acOnline)}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Current:</span>
-              <span class="info-value">${chargeNow ? (parseInt(chargeNow) / 1000000).toFixed(2) : 'N/A'} Ah</span>
+              <span class="info-label">Power Source:</span>
+              <span class="info-value">${acOnline === '1' ? `🔌 Connected ${acType ? '(' + acType + ')' : ''}` : '🔋 Battery Power'}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Capacity:</span>
-              <span class="info-value">${chargeFull ? (parseInt(chargeFull) / 1000000).toFixed(2) : 'N/A'} Ah</span>
+              <span class="info-label">Current Charge:</span>
+              <span class="info-value">${currentCapStr}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Full Capacity:</span>
+              <span class="info-value">${fullCapStr}</span>
             </div>
             <div class="info-item">
               <span class="info-label">Voltage:</span>
@@ -174,11 +347,17 @@ async function updateBatteryStats() {
               <span class="info-label">Power Usage:</span>
               <span class="info-value">${power.toFixed(2)} W</span>
             </div>
+            ${tempCelsius !== null ? `
+              <div class="info-item">
+                <span class="info-label">Temperature:</span>
+                <span class="info-value ${tempCelsius > 45 ? 'text-danger' : ''}">${tempCelsius} °C</span>
+              </div>
+            ` : ''}
           </div>
         </div>
         
         <div>
-          <div class="info-label">Charge Level</div>
+          <div class="info-label">Charge Level ${capacityLevel ? '(' + capacityLevel + ')' : ''}</div>
           <div class="charge-bar">
             <div class="charge-fill" style="width: ${capacity}%">${capacity}%</div>
           </div>
@@ -195,6 +374,18 @@ async function updateBatteryStats() {
             ⏱️ Estimated time to full: ${estimatedTimeToFull}
           </div>
         ` : ''}
+
+        ${(chargeControlEnd || conservationMode === '1') ? `
+          <div class="info-box">
+            🛡️ <strong>Battery Protection Active:</strong> Charge threshold set to ${chargeControlEnd ? chargeControlEnd + '%' : '80% (Conservation Mode)'}.
+          </div>
+        ` : ''}
+        
+        ${tempCelsius !== null && tempCelsius > 45 ? `
+          <div class="critical-box">
+            🔥 <strong>High Temperature Warning!</strong> Battery is running hot (${tempCelsius} °C). Check cooling and ventilation.
+          </div>
+        ` : ''}
         
         ${parseInt(capacity) < 20 ? `
           <div class="critical-box">
@@ -206,13 +397,18 @@ async function updateBatteryStats() {
           </div>
         ` : `
           <div class="success-box">
-            ✓ Battery is in good condition.
+            ✓ Battery is operating normally.
           </div>
         `}
         
         <div class="last-update">Last updated: ${new Date().toLocaleTimeString()}</div>
       </div>
     `;
+    
+    // Render Windows 11 Graph Card ONLY IF Persistent Background History is Enabled/Present
+    if (historyEntries !== null) {
+      html += renderWindows11Graph(historyEntries, graphViewHours);
+    }
     
     // Battery Health Card
     html += `
@@ -228,12 +424,12 @@ async function updateBatteryStats() {
         
         <div style="margin-top: 20px;">
           <div class="info-label">Design Capacity:</div>
-          <span class="info-value">${chargeFullDesign ? (parseInt(chargeFullDesign) / 1000000).toFixed(2) : 'N/A'} Ah</span>
+          <span class="info-value">${designCapStr}</span>
         </div>
         
         <div style="margin-top: 15px;">
           <div class="info-label">Current Capacity:</div>
-          <span class="info-value">${chargeFull ? (parseInt(chargeFull) / 1000000).toFixed(2) : 'N/A'} Ah</span>
+          <span class="info-value">${fullCapStr}</span>
         </div>
         
         ${health < 80 ? `
@@ -252,7 +448,7 @@ async function updateBatteryStats() {
       </div>
     `;
     
-    // Battery Information Card
+    // Device Information Card with Hover Tooltip Icon
     html += `
       <div class="battery-card">
         <div class="card-title">Device Information</div>
@@ -278,35 +474,34 @@ async function updateBatteryStats() {
             <div class="device-info-value">${cycleCount || '0'}</div>
           </div>
           <div class="device-info-item">
-            <div class="device-info-label">Battery Device</div>
-            <div class="device-info-value">BAT1</div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Battery History Card
-    html += `
-      <div class="battery-card">
-        <div class="card-title">Battery History (Last 30 readings)</div>
-        <div class="battery-history-container">
-          ${batteryHistory.entries.map(entry => `
-            <div class="history-entry">
-              <span class="history-time">${entry.time}</span>
-              <span class="history-percent">${entry.percent}%</span>
+            <div class="device-info-label">
+              Battery Device
+              <span class="tooltip">ℹ️
+                <span class="tooltiptext">${batteryBasePath}</span>
+              </span>
             </div>
-          `).join('')}
+            <div class="device-info-value">${batteryDeviceName}</div>
+          </div>
+          ${tempCelsius !== null ? `
+            <div class="device-info-item">
+              <div class="device-info-label">Temperature</div>
+              <div class="device-info-value">${tempCelsius} °C</div>
+            </div>
+          ` : ''}
+          ${chargeControlEnd ? `
+            <div class="device-info-item">
+              <div class="device-info-label">Charge Limit</div>
+              <div class="device-info-value">${chargeControlEnd}%</div>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
     
-    // Update the page
+    // Update DOM
     const elem = document.getElementById("battery-info");
     if (elem) {
       elem.innerHTML = html;
-      console.log("Battery info updated successfully at " + new Date().toLocaleTimeString());
-    } else {
-      console.error("Element 'battery-info' not found in DOM!");
     }
     
   } catch (error) {

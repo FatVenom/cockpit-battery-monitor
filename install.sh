@@ -3,10 +3,10 @@
 #############################################################################
 # Cockpit Battery Monitor - Installation Script
 #
-# This script automates the installation of the Cockpit Battery Monitor
-# module for Ubuntu Server and other Linux distributions with Cockpit.
+# Automates installation of Cockpit Battery Monitor module and optional 
+# 24/7 background logging systemd timer service.
 #
-# Usage: sudo bash install.sh
+# Usage: sudo bash install.sh [--with-logger | --without-logger]
 #############################################################################
 
 set -e  # Exit on any error
@@ -23,11 +23,19 @@ MODULE_NAME="battery-monitor"
 MODULE_DIR="/usr/share/cockpit/battery-monitor"
 REQUIRED_FILES=("manifest.json" "index.html" "battery.js" "battery-style.css")
 
-#############################################################################
-# Functions
-#############################################################################
+# Arguments parsing
+ENABLE_LOGGER=""
+for arg in "$@"; do
+    case $arg in
+        --with-logger)
+            ENABLE_LOGGER="yes"
+            ;;
+        --without-logger)
+            ENABLE_LOGGER="no"
+            ;;
+    esac
+done
 
-# Print colored output
 print_info() {
     echo -e "${BLUE}ℹ${NC} $1"
 }
@@ -44,7 +52,6 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
-# Check if running as root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         print_error "This script must be run as root (use sudo)"
@@ -52,10 +59,8 @@ check_root() {
     fi
 }
 
-# Check if Cockpit is installed
 check_cockpit() {
     print_info "Checking if Cockpit is installed..."
-    
     if ! command -v cockpit-bridge &> /dev/null; then
         print_error "Cockpit is not installed"
         echo ""
@@ -63,14 +68,11 @@ check_cockpit() {
         echo "  sudo apt-get update && sudo apt-get install cockpit"
         exit 1
     fi
-    
     print_success "Cockpit is installed"
 }
 
-# Check if Cockpit service is running
 check_cockpit_running() {
     print_info "Checking if Cockpit service is running..."
-    
     if ! systemctl is-active --quiet cockpit.service; then
         print_warning "Cockpit service is not running"
         print_info "Starting Cockpit service..."
@@ -81,10 +83,8 @@ check_cockpit_running() {
     fi
 }
 
-# Verify required files exist
 verify_files() {
     print_info "Verifying required files..."
-    
     local missing_files=0
     for file in "${REQUIRED_FILES[@]}"; do
         if [[ ! -f "$file" ]]; then
@@ -97,101 +97,95 @@ verify_files() {
     
     if [[ $missing_files -gt 0 ]]; then
         print_error "Some required files are missing"
-        echo ""
-        echo "Make sure you're in the cockpit-battery-monitor directory"
-        echo "and all required files are present."
         exit 1
     fi
 }
 
-# Create module directory
 create_module_directory() {
     print_info "Creating module directory..."
-    
     if [[ -d "$MODULE_DIR" ]]; then
-        print_warning "Module directory already exists: $MODULE_DIR"
-        print_info "Backing up existing module..."
-        mv "$MODULE_DIR" "${MODULE_DIR}.backup.$(date +%s)"
-        print_success "Backup created"
+        print_info "Updating existing installation in $MODULE_DIR..."
+        BACKUP_DIR="/var/backups/cockpit-battery-monitor_backup_$(date +%Y%m%d_%H%M%S)"
+        mkdir -p /var/backups
+        cp -r "$MODULE_DIR" "$BACKUP_DIR" 2>/dev/null || true
+        print_success "Backup created at: $BACKUP_DIR"
+    else
+        mkdir -p "$MODULE_DIR"
+        print_success "Module directory created: $MODULE_DIR"
     fi
-    
-    mkdir -p "$MODULE_DIR"
-    print_success "Module directory created: $MODULE_DIR"
 }
 
-# Copy files
 copy_files() {
     print_info "Copying files to module directory..."
-    
     for file in "${REQUIRED_FILES[@]}"; do
-        if ! cp "$file" "$MODULE_DIR/"; then
-            print_error "Failed to copy $file"
-            exit 1
-        fi
+        cp "$file" "$MODULE_DIR/"
         print_success "Copied: $file"
     done
 }
 
-# Set permissions
 set_permissions() {
     print_info "Setting file permissions..."
-    
-    chmod -R 755 "$MODULE_DIR"
-    chmod 644 "$MODULE_DIR"/*
-    
+    chmod 755 "$MODULE_DIR"
+    for file in "${REQUIRED_FILES[@]}"; do
+        chmod 644 "$MODULE_DIR/$file"
+    done
     print_success "Permissions set correctly"
 }
 
-# Verify battery device
 verify_battery() {
     print_info "Verifying battery device..."
-    
-    if [[ ! -d "/sys/class/power_supply" ]]; then
-        print_warning "Battery information not available on this system"
-        echo "This might be a virtual machine or server without battery support"
-        return
-    fi
-    
-    local battery_found=0
-    for device in /sys/class/power_supply/BAT*; do
-        if [[ -d "$device" ]]; then
-            local capacity_file="$device/capacity"
-            if [[ -f "$capacity_file" ]]; then
-                local device_name=$(basename "$device")
-                print_success "Battery device found: $device_name"
-                battery_found=1
-                
-                # Show battery info
-                if [[ -f "$device/manufacturer" ]]; then
-                    local manufacturer=$(cat "$device/manufacturer")
-                    print_info "  Manufacturer: $manufacturer"
-                fi
-                if [[ -f "$device/model_name" ]]; then
-                    local model=$(cat "$device/model_name")
-                    print_info "  Model: $model"
-                fi
+    local found_battery=0
+    for bat in /sys/class/power_supply/BAT*; do
+        if [[ -d "$bat" ]]; then
+            found_battery=1
+            bat_name=$(basename "$bat")
+            print_success "Battery device found: $bat_name"
+            if [[ -f "$bat/manufacturer" ]]; then
+                mfg=$(cat "$bat/manufacturer")
+                print_info "  Manufacturer: $mfg"
             fi
+            if [[ -f "$bat/model_name" ]]; then
+                model=$(cat "$bat/model_name")
+                print_info "  Model: $model"
+            fi
+            break
         fi
     done
-    
-    if [[ $battery_found -eq 0 ]]; then
-        print_warning "No battery device found"
-        echo "This system might be a virtual machine or desktop without battery"
-        echo "The module will still work but may show N/A for battery information"
+    if [[ $found_battery -eq 0 ]]; then
+        print_warning "No battery device found in /sys/class/power_supply/"
     fi
 }
 
-# Restart Cockpit
+setup_optional_logger() {
+    if [[ -z "$ENABLE_LOGGER" ]]; then
+        echo ""
+        read -p "Do you want to install & enable persistent 48-hour battery history logging? [y/N]: " choice
+        case "$choice" in 
+            y|Y|yes|YES) ENABLE_LOGGER="yes" ;;
+            *) ENABLE_LOGGER="no" ;;
+        esac
+    fi
+
+    if [[ "$ENABLE_LOGGER" == "yes" ]]; then
+        print_info "Installing background logger service..."
+        cp cockpit-battery-logger.sh /usr/local/bin/
+        chmod +x /usr/local/bin/cockpit-battery-logger.sh
+        
+        cp cockpit-battery-logger.service /etc/systemd/system/
+        cp cockpit-battery-logger.timer /etc/systemd/system/
+        
+        systemctl daemon-reload
+        systemctl enable --now cockpit-battery-logger.timer
+        print_success "24/7 Background Logger Service installed and enabled!"
+    else
+        print_info "Skipping background logger installation (Can be enabled later anytime)."
+    fi
+}
+
 restart_cockpit() {
     print_info "Restarting Cockpit service..."
-    
-    # Properly handle the service restart
     systemctl restart cockpit.service
-    
-    # Wait for service to stabilize
     sleep 2
-    
-    # Check if service is running
     if systemctl is-active --quiet cockpit.service; then
         print_success "Cockpit service restarted successfully"
     else
@@ -200,19 +194,13 @@ restart_cockpit() {
     fi
 }
 
-# Cleanup function to prevent zombies
 cleanup() {
-    # Kill any remaining child processes
     jobs -p | xargs -r kill -9 2>/dev/null || true
-    
-    # Wait for all background jobs
     wait
 }
 
-# Call cleanup on exit
 trap cleanup EXIT
 
-# Show installation summary
 show_summary() {
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
@@ -220,47 +208,25 @@ show_summary() {
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo "Installation Summary:"
-    echo "  Module Location: $MODULE_DIR"
-    echo "  Module Name:     Battery Monitor"
+    echo "  Module Location:   $MODULE_DIR"
+    echo "  Module Name:       Battery Monitor"
+    echo "  Background Logger: ${ENABLE_LOGGER:-no}"
     echo ""
     echo "Next Steps:"
     echo "  1. Open your browser and go to: https://localhost:9090"
     echo "  2. Log in with your credentials"
     echo "  3. Look for 'Battery Monitor' in the sidebar under 'Tools'"
-    echo "  4. Click it to view your battery information"
-    echo ""
-    echo "Configuration:"
-    echo "  The module automatically detects your battery device."
-    echo "  If you need to change it, edit:"
-    echo "    $MODULE_DIR/battery.js"
-    echo "  And change the battery device path (line ~71)"
-    echo ""
-    echo "Troubleshooting:"
-    echo "  If the module doesn't appear:"
-    echo "    1. Clear your browser cache (Ctrl+Shift+R or Cmd+Shift+R)"
-    echo "    2. Check Cockpit logs: sudo journalctl -u cockpit -f"
-    echo "    3. Verify battery: ls /sys/class/power_supply/"
-    echo ""
-    echo "Uninstall:"
-    echo "  To remove the module, run:"
-    echo "    sudo rm -rf $MODULE_DIR"
-    echo "    sudo systemctl restart cockpit"
     echo ""
 }
-
-#############################################################################
-# Main Installation Flow
-#############################################################################
 
 main() {
     echo ""
     echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║${NC}  Cockpit Battery Monitor Installation Script              ${BLUE}║${NC}"
-    echo -e "${BLUE}║${NC}  Version: 1.0                                             ${BLUE}║${NC}"
+    echo -e "${BLUE}║${NC}  Version: 2.0                                             ${BLUE}║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
-    # Run checks and installation steps
     check_root
     check_cockpit
     check_cockpit_running
@@ -269,11 +235,9 @@ main() {
     copy_files
     set_permissions
     verify_battery
+    setup_optional_logger
     restart_cockpit
-    
-    # Show summary
     show_summary
 }
 
-# Run main function
-main
+main "$@"

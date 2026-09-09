@@ -1,0 +1,10 @@
+[Unit]
+Description=Cockpit Battery Monitor Background Logger Service
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cockpit-battery-logger.sh
+
+[Install]
+WantedBy=multi-user.target

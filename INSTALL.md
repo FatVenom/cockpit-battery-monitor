@@ -28,9 +28,35 @@ sudo apt-get install cockpit
 
 ## Installation Methods
 
-### Method 1: Automated Installation (Recommended) ⚡
+### Method 1: Makefile Installation (Standard) 🛠️
 
-The easiest and fastest way to install is using the provided installation script.
+Using `make` is the standard way to install software on Linux systems and is used by package maintainers (Debian/Ubuntu `.deb`, Arch Linux `PKGBUILD`, etc.).
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/cockpit-battery-monitor.git
+cd cockpit-battery-monitor
+
+# Standard installation (minimal, without background history logger)
+sudo make install
+
+# Standard installation WITH 48-hour background history logger service
+sudo make install-service
+
+# Activate the background timer service to enable battery history logging:
+sudo systemctl daemon-reload && sudo systemctl enable --now cockpit-battery-logger.timer
+```
+
+To uninstall at any time:
+```bash
+sudo make uninstall
+# Or to remove service as well:
+sudo make uninstall-service
+```
+
+### Method 2: Automated Installation Script ⚡
+
+The easiest way to install with an interactive prompt for optional background history logging:
 
 #### Steps:
 
@@ -40,14 +66,15 @@ The easiest and fastest way to install is using the provided installation script
    cd cockpit-battery-monitor
    ```
 
-2. **Make the install script executable:**
-   ```bash
-   chmod +x install.sh
-   ```
-
-3. **Run the installation script:**
+2. **Run the installation script:**
    ```bash
    sudo bash install.sh
+   ```
+   *The script will ask interactively if you want to enable persistent 48-hour battery history logging.*
+
+   *For non-interactive installs, pass `--with-logger` or `--without-logger`:*
+   ```bash
+   sudo bash install.sh --with-logger
    ```
 
 4. **Wait for completion** - The script will display a summary when done
@@ -127,7 +154,7 @@ Troubleshooting:
     3. Verify battery: ls /sys/class/power_supply/
 ```
 
-### Method 2: Manual Installation
+### Method 3: Manual Installation
 
 If you prefer to install manually or the script doesn't work:
 
@@ -337,10 +364,17 @@ sudo bash install.sh
 
 ## Uninstallation
 
-To remove the module:
+To remove the module cleanly:
 
 ```bash
+# Option 1: Using Makefile
+sudo make uninstall-service
+
+# Option 2: Manual Removal
+sudo systemctl disable --now cockpit-battery-logger.timer 2>/dev/null || true
 sudo rm -rf /usr/share/cockpit/battery-monitor
+sudo rm -f /usr/local/bin/cockpit-battery-logger.sh /etc/systemd/system/cockpit-battery-logger.* /var/log/cockpit-battery-history.json
+sudo systemctl daemon-reload
 sudo systemctl restart cockpit
 ```
 
@@ -420,14 +454,15 @@ If you encounter issues:
 
 | Task | Command |
 |------|---------|
-| Install (automated) | `sudo bash install.sh` |
-| Install (manual) | See Method 2 above |
+| Install (Makefile) | `sudo make install` |
+| Install (automated script) | `sudo bash install.sh` |
+| Install (manual) | See Method 3 above |
 | Verify installation | `ls -la /usr/share/cockpit/battery-monitor/` |
 | Check battery device | `ls /sys/class/power_supply/` |
 | View Cockpit logs | `sudo journalctl -u cockpit -f` |
 | Restart Cockpit | `sudo systemctl restart cockpit` |
-| Uninstall | `sudo rm -rf /usr/share/cockpit/battery-monitor && sudo systemctl restart cockpit` |
-| Update | `git pull && sudo bash install.sh` |
+| Uninstall | `sudo make uninstall` (or `sudo rm -rf /usr/share/cockpit/battery-monitor`) |
+| Update | `git pull && sudo make install` |
 
 ## Next Steps
 
