@@ -99,13 +99,7 @@ async function detectACPath() {
   return null;
 }
 
-// Function to change graph timeframe filter
-window.setGraphViewHours = function(hours) {
-  graphViewHours = parseInt(hours);
-  updateBatteryStats();
-};
-
-// Render Windows 11-style interactive bar graph
+// Render Windows 11-style interactive bar graph using Native SVG (100% CSP Compliant)
 function renderWindows11Graph(historyEntries, timeframeHours) {
   if (!historyEntries || historyEntries.length === 0) {
     return `
@@ -134,14 +128,52 @@ function renderWindows11Graph(historyEntries, timeframeHours) {
     if (sampledEntries.length >= barCount) break;
   }
 
-  // Render SVG / CSS Bar Chart
+  const viewBoxWidth = 800;
+  const viewBoxHeight = 180;
+  const numBars = sampledEntries.length;
+  const barGap = 12;
+  const totalGaps = numBars - 1;
+  const availableWidth = viewBoxWidth - (barGap * totalGaps);
+  const barWidth = Math.max(10, Math.min(22, availableWidth / numBars));
+  const totalChartWidth = (barWidth * numBars) + (barGap * totalGaps);
+  const startX = (viewBoxWidth - totalChartWidth) / 2;
+
+  let barsSvgHtml = '';
+
+  sampledEntries.forEach((entry, idx) => {
+    const pct = Math.min(100, Math.max(0, parseInt(entry.percent) || 0));
+    let colorClass = 'bar-high';
+    if (pct < 20) colorClass = 'bar-low';
+    else if (pct < 50) colorClass = 'bar-medium';
+
+    const isCharging = entry.status === 'Charging' || entry.acOnline === '1';
+    
+    // Scale 0-100% to height in SVG
+    const maxBarH = 160;
+    const barH = Math.max(6, (pct / 100) * maxBarH);
+    const x = startX + idx * (barWidth + barGap);
+    const y = viewBoxHeight - barH;
+
+    barsSvgHtml += `
+      <g class="bar-group" 
+         data-time="${entry.time}" 
+         data-percent="${pct}" 
+         data-status="${entry.status || 'Discharging'}" 
+         data-power="${entry.power || ''}" 
+         data-temp="${entry.temp || ''}">
+        <rect class="bar-rect ${colorClass}" x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="4" ry="4" />
+        ${isCharging ? `<text class="charging-icon-svg" x="${x + barWidth/2}" y="${y - 6}" text-anchor="middle">⚡</text>` : ''}
+      </g>
+    `;
+  });
+
   return `
     <div class="graph-card">
       <div class="graph-header">
         <span class="graph-title">Battery levels</span>
         <div class="graph-time-selector">
           <label for="timeframe-select">Time period: </label>
-          <select id="timeframe-select" onchange="setGraphViewHours(this.value)">
+          <select id="timeframe-select">
             <option value="12" ${timeframeHours === 12 ? 'selected' : ''}>Last 12 hours</option>
             <option value="24" ${timeframeHours === 24 ? 'selected' : ''}>Last 24 hours</option>
           </select>
@@ -149,47 +181,25 @@ function renderWindows11Graph(historyEntries, timeframeHours) {
       </div>
 
       <div class="graph-body">
-        <!-- Y-Axis Reference Guide Lines -->
         <div class="y-axis-labels">
           <span>100%</span>
           <span>50%</span>
           <span>0%</span>
         </div>
 
-        <div class="chart-area">
+        <div class="chart-area" id="chart-area-container">
           <div class="grid-line line-100"></div>
           <div class="grid-line line-50"></div>
           <div class="grid-line line-0"></div>
 
-          <div class="bars-container">
-            ${sampledEntries.map(entry => {
-              const pct = Math.min(100, Math.max(0, parseInt(entry.percent) || 0));
-              let barColorClass = 'high';
-              if (pct < 20) barColorClass = 'low';
-              else if (pct < 50) barColorClass = 'medium';
+          <svg class="battery-svg-chart" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none">
+            ${barsSvgHtml}
+          </svg>
 
-              const isCharging = entry.status === 'Charging' || entry.acOnline === '1';
-
-              return `
-                <div class="bar-wrapper">
-                  <div class="bar-fill ${barColorClass}" style="height: ${pct}%;">
-                    ${isCharging ? '<span class="charging-icon">⚡</span>' : ''}
-                    <div class="bar-tooltip">
-                      <div class="tooltip-time">${entry.time}</div>
-                      <div class="tooltip-percent">${pct}%</div>
-                      <div class="tooltip-status">${entry.status || 'Discharging'}</div>
-                      ${entry.power ? `<div class="tooltip-detail">Power: ${entry.power} W</div>` : ''}
-                      ${entry.temp && entry.temp !== 'N/A' ? `<div class="tooltip-detail">Temp: ${entry.temp} °C</div>` : ''}
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
+          <div id="graph-floating-tooltip" class="graph-floating-tooltip"></div>
         </div>
       </div>
 
-      <!-- X-Axis Time Labels -->
       <div class="x-axis-labels">
         <span>${sampledEntries[0] ? sampledEntries[0].time : ''}</span>
         <span>${sampledEntries[Math.floor(sampledEntries.length / 2)] ? sampledEntries[Math.floor(sampledEntries.length / 2)].time : ''}</span>
@@ -197,6 +207,55 @@ function renderWindows11Graph(historyEntries, timeframeHours) {
       </div>
     </div>
   `;
+}
+
+// Function to attach DOM event listeners (100% CSP Compliant, zero inline handlers)
+function attachGraphEventListeners() {
+  const timeframeSelect = document.getElementById("timeframe-select");
+  if (timeframeSelect) {
+    timeframeSelect.addEventListener("change", function() {
+      graphViewHours = parseInt(this.value);
+      updateBatteryStats();
+    });
+  }
+
+  const tooltipElem = document.getElementById("graph-floating-tooltip");
+  const chartContainer = document.getElementById("chart-area-container");
+
+  if (tooltipElem && chartContainer) {
+    const barGroups = document.querySelectorAll(".bar-group");
+    barGroups.forEach(group => {
+      group.addEventListener("mouseenter", function(e) {
+        const time = this.getAttribute("data-time");
+        const percent = this.getAttribute("data-percent");
+        const status = this.getAttribute("data-status");
+        const power = this.getAttribute("data-power");
+        const temp = this.getAttribute("data-temp");
+
+        let content = `<div class="tooltip-time">${time}</div>`;
+        content += `<div class="tooltip-percent">${percent}%</div>`;
+        content += `<div class="tooltip-status">${status}</div>`;
+        if (power) content += `<div class="tooltip-detail">Power: ${power} W</div>`;
+        if (temp && temp !== 'N/A') content += `<div class="tooltip-detail">Temp: ${temp} °C</div>`;
+
+        tooltipElem.innerHTML = content;
+        tooltipElem.style.display = "block";
+
+        // Position tooltip relative to container
+        const rect = this.getBoundingClientRect();
+        const containerRect = chartContainer.getBoundingClientRect();
+        const leftPos = rect.left - containerRect.left + (rect.width / 2);
+        const topPos = rect.top - containerRect.top - 10;
+
+        tooltipElem.style.left = leftPos + "px";
+        tooltipElem.style.top = topPos + "px";
+      });
+
+      group.addEventListener("mouseleave", function() {
+        tooltipElem.style.display = "none";
+      });
+    });
+  }
 }
 
 // Main function to update battery stats
@@ -502,6 +561,7 @@ async function updateBatteryStats() {
     const elem = document.getElementById("battery-info");
     if (elem) {
       elem.innerHTML = html;
+      attachGraphEventListeners();
     }
     
   } catch (error) {

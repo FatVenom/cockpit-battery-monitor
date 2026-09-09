@@ -276,7 +276,7 @@ h1 {
   color: #999;
 }
 
-/* Windows 11 Style Battery Graph */
+/* Windows 11 Style Battery Graph (100% CSP Compliant SVG) */
 .graph-card {
   background: #ffffff;
   border-radius: 15px;
@@ -349,88 +349,62 @@ h1 {
 .grid-line.line-50 { top: 50%; }
 .grid-line.line-0 { bottom: 0%; border-top: none; }
 
-.bars-container {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 0 10px;
-  z-index: 2;
-  box-sizing: border-box;
-}
-
-.bar-wrapper {
-  flex: 1;
-  height: 100%;
-  position: relative;
-  margin: 0 3px;
-}
-
-.bar-fill {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+.battery-svg-chart {
   width: 100%;
-  max-width: 16px;
-  min-height: 4px;
-  border-radius: 8px 8px 4px 4px;
-  transition: height 0.3s ease, transform 0.2s ease, filter 0.2s ease;
+  height: 100%;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
+}
+
+.bar-group {
   cursor: pointer;
 }
 
-.bar-fill:hover {
-  transform: translateX(-50%) scaleY(1.04);
-  filter: brightness(1.15);
+.bar-rect {
+  transition: transform 0.2s ease, fill 0.2s ease, opacity 0.2s ease;
 }
 
-.bar-fill.high {
-  background: linear-gradient(180deg, #20c997 0%, #0ca678 100%);
+.bar-rect.bar-high {
+  fill: #0ca678;
 }
 
-.bar-fill.medium {
-  background: linear-gradient(180deg, #ffc078 0%, #f59f00 100%);
+.bar-rect.bar-medium {
+  fill: #f59f00;
 }
 
-.bar-fill.low {
-  background: linear-gradient(180deg, #ff8787 0%, #f03e3e 100%);
+.bar-rect.bar-low {
+  fill: #f03e3e;
 }
 
-.charging-icon {
+.bar-group:hover .bar-rect {
+  opacity: 0.85;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+}
+
+.charging-icon-svg {
+  font-size: 10px;
+  fill: #ff922b;
+}
+
+/* Floating Glassmorphism Tooltip (Event-Driven CSP Compliant) */
+.graph-floating-tooltip {
+  display: none;
   position: absolute;
-  top: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.8em;
-}
-
-/* Glassmorphism Floating Hover Tooltip */
-.bar-tooltip {
-  visibility: hidden;
-  opacity: 0;
-  position: absolute;
-  bottom: 115%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(33, 37, 41, 0.92);
-  backdrop-filter: blur(8px);
+  background: rgba(33, 37, 41, 0.95);
   color: white;
-  padding: 8px 12px;
+  padding: 8px 14px;
   border-radius: 8px;
   font-size: 0.8em;
-  white-space: nowrap;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
   pointer-events: none;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
   z-index: 100;
   text-align: center;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
 }
 
-.bar-tooltip::after {
+.graph-floating-tooltip::after {
   content: "";
   position: absolute;
   top: 100%;
@@ -438,12 +412,7 @@ h1 {
   margin-left: -5px;
   border-width: 5px;
   border-style: solid;
-  border-color: rgba(33, 37, 41, 0.92) transparent transparent transparent;
-}
-
-.bar-fill:hover .bar-tooltip {
-  visibility: visible;
-  opacity: 1;
+  border-color: rgba(33, 37, 41, 0.95) transparent transparent transparent;
 }
 
 .tooltip-time {
@@ -455,7 +424,6 @@ h1 {
 .tooltip-percent {
   font-size: 1.2em;
   font-weight: 700;
-  color: #485fc7;
   color: #74c0fc;
 }
 
